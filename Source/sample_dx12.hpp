@@ -49,6 +49,7 @@ struct dx12_render_stats
 	float latency;
 	float minmax_jitter;
 	float stddev_jitter;
+	float present_time;
 };
 
 bool initialize_dx12(dx12_swapchain_options *opts);

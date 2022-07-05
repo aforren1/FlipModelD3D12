@@ -36,6 +36,7 @@
 #include <DXGIDebug.h>
 #include <comdef.h>
 #include <wrl.h>
+#include <string>
 
 #include "PresentQueueStats.hpp"
 #include "EventViz.hpp"
@@ -708,16 +709,23 @@ static void present_dx12(frame_data *frame, UINT64 FrameBeginTime, int vsync, dx
 {
 	UINT SyncInterval = vsync;
 	auto chain = dx12->swap_chain.Get();
-
 	auto present_call = eviz->Start(EventViz::kCpuQueue, &event_types[EVENT_TYPE_PRESENT_CALL]);
-	chain->Present(SyncInterval, 0);
+	auto presentStart = QpcNow();
+	auto res = chain->Present(SyncInterval, 0);// , DXGI_PRESENT_DO_NOT_WAIT);
+	auto presentEnd = QpcNow();
 	eviz->End(present_call);
 
+	if (res != S_OK) {
+		OutputDebugString(std::to_string(res).c_str());
+	}
 	UINT color_index = frame->backbuffer_index % NUM_FRAME_COLORS;
 
 	auto present_entry = eviz->Start(EventViz::kPresentQueue, &event_types[EVENT_TYPE_COLOR0 + color_index], frame->render_id);
 	pqs->PostPresent(chain, SyncInterval, FrameBeginTime, present_entry);
-	
+	if (out_stats)
+	{
+		out_stats->present_time = float(double(presentEnd - presentStart) / g_QpcFreq);
+	}
 	dequeue_presents(out_stats);
 }
 
@@ -753,7 +761,7 @@ static bool resize_dx12_internal(void *pHWND, void *pCoreWindow, float x_dips, f
 	swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swap_chain_desc.BufferCount = swapchain_opts.create_time.swapchain_buffer_count;
 	swap_chain_desc.Scaling = DXGI_SCALING_NONE;
-	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 	swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED; // unused
 	swap_chain_desc.Flags = swapchain_opts.create_time.use_waitable_object ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
 
@@ -810,6 +818,14 @@ static bool resize_dx12_internal(void *pHWND, void *pCoreWindow, float x_dips, f
 				std::max(1,swapchain_opts.create_time.max_frame_latency)));
 			dx12->swap_event = dx12->swap_chain->GetFrameLatencyWaitableObject();
 		}
+		/*
+		else {
+			ComPtr<IDXGIDevice1> dxgiDevice;
+			CheckHresult(dx12->device11on12.As(&dxgiDevice));
+			CheckHresult(dxgiDevice->SetMaximumFrameLatency(
+			    std::max(1, swapchain_opts.create_time.max_frame_latency)));
+		}
+		*/
 
 		dx12->frame_q.SetSwapChain(dx12->swap_chain.Get(), swap_chain_desc.Format, dpi, dpi);
 		create_depth = true;

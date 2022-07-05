@@ -22,6 +22,7 @@ static wsi::ScreenMode mode;
 static unsigned max_fps;
 static float current_fps, current_fps_cpu, current_fps_gpu;
 static float current_frametime_cpu, current_frametime_gpu;
+static float current_presenttime;
 static bool caption_changed;
 static bool running;
 static float paused_fractional_ticks;
@@ -59,7 +60,8 @@ static void rebuild_hud_string(game_data *game)
 		"     Latency MinMaxDev = %.2fms" NEWLINE
 		"     Fps = %.2f (%.2fms)" NEWLINE
 		"     GPU fps = %.2f (%.2fms)" NEWLINE
-		"     CPU fps = %.2f (%.2fms)" NEWLINE,
+		"     CPU fps = %.2f (%.2fms)" NEWLINE
+		"     Present time = %.2fms" NEWLINE,
 		game->paused,
 		screen.prefs.windowed==0,
 		screen.prefs.vsync,
@@ -73,7 +75,8 @@ static void rebuild_hud_string(game_data *game)
 		frame_latency_stddev, frame_latency_minmaxd,
 		current_fps, 1000 / current_fps,
 		current_fps_gpu, 1000*current_frametime_gpu,
-		current_fps_cpu, 1000*current_frametime_cpu
+		current_fps_cpu, 1000*current_frametime_cpu,
+		1000*current_presenttime
 		);
 }
 
@@ -305,6 +308,7 @@ static void run_game()
 				frame_latency_minmaxd = stats.minmax_jitter;
 				current_frametime_cpu = (1 - alpha)*current_frametime_cpu + alpha*stats.cpu_frame_time;
 				current_frametime_gpu = (1 - alpha)*current_frametime_gpu + alpha*stats.gpu_frame_time;
+				current_presenttime = (1 - alpha) * current_presenttime + alpha * stats.present_time;
 			}
 		}
 
